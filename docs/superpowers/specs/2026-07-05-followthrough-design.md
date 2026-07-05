@@ -29,7 +29,14 @@ Teams make decisions in meetings and Slack threads, then lose them. Commitments 
 2. **Register** — one Slack canvas per channel, auto-updated on every capture: current decisions and open/done commitments.
 3. **Chase** — scheduled DM nudge to each commitment owner before its deadline (via `chat.scheduleMessage`); weekly "what's slipping" digest posted to the channel (cron).
 4. **Recall** — user asks in the assistant thread ("what did we decide about pricing and why?"); agent answers with the decision, rationale, and permalink citations.
-5. **MCP server** — read-only HTTP MCP server exposing the same store:
+5. **Daily Briefing** — every workday morning (9:00 AM workspace-local), each user with open commitments gets a structured DM: their timetable for the day, so they start work with a clear picture without asking anyone. Also available on demand ("what's my day?" in the assistant thread). Sections:
+   - Overdue commitments (flagged).
+   - Due today.
+   - Due this week (preview).
+   - Decisions made in their channels since their last briefing (context).
+   - A short LLM-composed 1–2 sentence "today's focus" line on top.
+   - Users with nothing open get no DM (no noise); on-demand ask returns a "you're clear" message.
+6. **MCP server** — read-only HTTP MCP server exposing the same store:
    - `search_decisions(query)` — full-text search over decisions.
    - `list_open_commitments(user?)` — open commitments, optionally filtered by owner.
    - `get_decision(id)` — full record with rationale and source link.
@@ -70,6 +77,10 @@ commitments(id, channel_id, owner_user_id TEXT, task TEXT,
 
 FTS5 virtual table over `decisions(what, rationale)` for recall and MCP search.
 
+```
+users(user_id PRIMARY KEY, last_briefed_at TEXT NULL)
+```
+
 ## Data flows
 
 ### Capture
@@ -93,6 +104,14 @@ FTS5 virtual table over `decisions(what, rationale)` for recall and MCP search.
 - On capture, each commitment with a deadline gets one nudge DM: 24h before the deadline when it has a time, or 9:00 AM workspace-local on the deadline day when it is date-only.
 - Weekly cron (Mon 9:00) posts a per-channel digest: overdue and due-this-week commitments; commitments with no deadline are flagged here instead of nudged.
 
+### Daily Briefing
+
+1. Weekday cron at 9:00 AM workspace-local: query the store for users with open commitments.
+2. Per user: build sections (overdue / due today / due this week / recent decisions in channels where they have commitments) from SQLite — no LLM needed for the data.
+3. DeepSeek composes the one-line "today's focus" summary from those sections.
+4. Send as a Block Kit DM. On-demand path: same builder triggered from the assistant thread ("what's my day?" is a suggested prompt); on-demand works even when the user has nothing open ("you're clear today").
+5. Record `last_briefed_at` per user so "decisions since last briefing" has a boundary.
+
 ## Error handling
 
 - Every external call (Slack Web API, DeepSeek, canvas) is wrapped; failures produce a clear user-facing message about what couldn't be done. The agent never fails silently.
@@ -112,12 +131,13 @@ FTS5 virtual table over `decisions(what, rationale)` for recall and MCP search.
 
 1. Messy decision thread in-channel → `@FollowThrough` → summary card appears.
 2. Channel canvas updates with the decision register.
-3. Owner receives a nudge DM about their commitment.
-4. Assistant thread: "what did we decide about X and why?" → cited answer.
-5. Finale: Claude Desktop queries the same decision log **from outside Slack** via the MCP server.
+3. Next morning: owner opens Slack to a **Daily Briefing** DM — their day laid out, no one asked.
+4. Owner receives a nudge DM about their commitment.
+5. Assistant thread: "what did we decide about X and why?" → cited answer.
+6. Finale: Claude Desktop queries the same decision log **from outside Slack** via the MCP server.
 
 ## Risks
 
 - **Extraction quality** — mitigated by fixtures-first prompt iteration and honest "nothing found" behavior.
 - **Slack API surface unfamiliarity** (canvas API, Assistant class) — mitigated by building capture (core) first; canvas and nudges layer on and can be cut without breaking the demo's spine.
-- **Time (8 days)** — layered build order matches the demo: capture → register → chase → recall → MCP. Each layer is independently demoable.
+- **Time (8 days)** — layered build order matches the demo: capture → register → chase → briefing → recall → MCP. Each layer is independently demoable; the Daily Briefing reads only from the store, so it layers on without touching capture.
