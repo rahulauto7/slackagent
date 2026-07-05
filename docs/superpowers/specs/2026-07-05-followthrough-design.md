@@ -90,7 +90,7 @@ FTS5 virtual table over `decisions(what, rationale)` for recall and MCP search.
 
 ### Chase
 
-- On capture, each commitment with a deadline gets a nudge DM scheduled ~24h before deadline (deadline day at 9:00 workspace-local if the deadline is date-only).
+- On capture, each commitment with a deadline gets one nudge DM: 24h before the deadline when it has a time, or 9:00 AM workspace-local on the deadline day when it is date-only.
 - Weekly cron (Mon 9:00) posts a per-channel digest: overdue and due-this-week commitments; commitments with no deadline are flagged here instead of nudged.
 
 ## Error handling
