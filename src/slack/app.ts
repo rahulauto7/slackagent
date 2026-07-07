@@ -6,6 +6,7 @@ import type { LlmClient } from '../llm/client.js';
 import { captureThread, type SlackReader } from './capture.js';
 import { syncChannelCanvas, webCanvasClient } from './canvas.js';
 import { completeCommitment, markBlocksDone } from './complete.js';
+import { scheduleNudge, webNudgeSender } from './nudger.js';
 
 export function webClientReader(client: any, botUserId: string): SlackReader {
   return {
@@ -40,6 +41,7 @@ export function createSlackApp(config: Config, db: Database.Database, llm: LlmCl
         if (!sync.ok) await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs,
           text: `⚠️ Captured, but the canvas register couldn't be updated: ${sync.error}` });
       }
+      for (const c of r.commitments ?? []) await scheduleNudge(db, webNudgeSender(client), c);
     } catch (e) {
       console.error('capture failed', e);
       await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs,

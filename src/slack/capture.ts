@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import type { Commitment } from '../store/types.js';
 import type { LlmClient } from '../llm/client.js';
 import { extract, ExtractionParseError } from '../extractor/extract.js';
 import { insertDecision } from '../store/decisionStore.js';
@@ -15,7 +16,7 @@ export interface SlackReader {
 export async function captureThread(
   db: Database.Database, llm: LlmClient, reader: SlackReader,
   channelId: string, threadTs: string,
-): Promise<{ text: string; blocks?: any[] }> {
+): Promise<{ text: string; blocks?: any[]; commitments?: Commitment[] }> {
   const [msgs, members, permalink] = await Promise.all([
     reader.fetchThread(channelId, threadTs), reader.listMembers(),
     reader.getPermalink(channelId, threadTs),
@@ -43,5 +44,5 @@ export async function captureThread(
       owner_user_id: resolveOwner(c.owner, participants, members),
     }));
   return { text: `Captured ${decisions.length} decision(s), ${commitments.length} commitment(s).`,
-           blocks: captureSummaryBlocks(decisions, commitments) };
+           blocks: captureSummaryBlocks(decisions, commitments), commitments };
 }
