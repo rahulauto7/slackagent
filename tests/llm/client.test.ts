@@ -4,7 +4,7 @@ import { FakeLlm } from '../helpers/fakeLlm.js';
 
 const config = {
   llmBaseUrl: 'https://api.deepseek.com', llmModel: 'deepseek-chat', llmApiKey: 'k',
-  slackBotToken: '', slackAppToken: '', dbPath: ':memory:', mcpPort: 3920,
+  slackBotToken: '', slackAppToken: '', slackUserToken: '', dbPath: ':memory:', mcpPort: 3920,
 };
 
 describe('llm client', () => {

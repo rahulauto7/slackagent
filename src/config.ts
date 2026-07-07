@@ -1,6 +1,6 @@
 export interface Config {
   llmBaseUrl: string; llmModel: string; llmApiKey: string;
-  slackBotToken: string; slackAppToken: string;
+  slackBotToken: string; slackAppToken: string; slackUserToken: string;
   dbPath: string; mcpPort: number;
 }
 
@@ -17,6 +17,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     llmApiKey: required(env, 'LLM_API_KEY'),
     slackBotToken: env.SLACK_BOT_TOKEN ?? '',
     slackAppToken: env.SLACK_APP_TOKEN ?? '',
+    slackUserToken: env.SLACK_USER_TOKEN ?? '',
     dbPath: env.DB_PATH ?? './followthrough.db',
     mcpPort: env.MCP_PORT ? Number(env.MCP_PORT) : 3920,
   };

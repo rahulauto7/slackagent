@@ -1,5 +1,5 @@
 import pkg from '@slack/bolt';
-const { App } = pkg;
+const { App, Assistant } = pkg;
 import type Database from 'better-sqlite3';
 import type { Config } from '../config.js';
 import type { LlmClient } from '../llm/client.js';
@@ -7,6 +7,8 @@ import { captureThread, type SlackReader } from './capture.js';
 import { syncChannelCanvas, webCanvasClient } from './canvas.js';
 import { completeCommitment, markBlocksDone } from './complete.js';
 import { scheduleNudge, webNudgeSender } from './nudger.js';
+import { isBriefingAsk, answerRecall } from './recall.js';
+import { onDemandBriefing } from './briefing.js';
 
 export function webClientReader(client: any, botUserId: string): SlackReader {
   return {
@@ -63,5 +65,36 @@ export function createSlackApp(config: Config, db: Database.Database, llm: LlmCl
       blocks: markBlocksDone(b.message.blocks, id, b.user.id) });
     await syncChannelCanvas(db, webCanvasClient(client), r.commitment!.channel_id);
   });
+  const assistant = new Assistant({
+    threadStarted: async ({ say, setSuggestedPrompts }) => {
+      await say('Hi! Ask me what was decided and why, or what\'s on your plate.');
+      await setSuggestedPrompts({ prompts: [
+        { title: "What's my day?", message: "What's my day?" },
+        { title: 'Decision lookup', message: 'What did we decide about pricing and why?' },
+      ] });
+    },
+    userMessage: async ({ message, say, setStatus, client }) => {
+      const text = (message as any).text ?? '';
+      const userId = (message as any).user;
+      try {
+        await setStatus('thinking...');
+        if (isBriefingAsk(text)) {
+          const r = await onDemandBriefing(db, llm, userId, new Date());
+          await say({ text: r.text, blocks: r.blocks });
+          return;
+        }
+        const searchContext = async (q: string): Promise<string[]> => {
+          if (!config.slackUserToken) return [];
+          const res = await client.search.messages({ token: config.slackUserToken, query: q, count: 5 });
+          return (res.messages?.matches ?? []).map((m: any) => `${m.username}: ${m.text}`);
+        };
+        await say(await answerRecall(db, llm, text, searchContext));
+      } catch (e) {
+        console.error('assistant failed', e);
+        await say(`⚠️ I couldn't answer that: ${(e as Error).message}`);
+      }
+    },
+  });
+  app.assistant(assistant);
   return app;
 }
