@@ -31,6 +31,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS decisions_fts USING fts5(
 CREATE TRIGGER IF NOT EXISTS decisions_ai AFTER INSERT ON decisions BEGIN
   INSERT INTO decisions_fts(rowid, what, rationale) VALUES (new.id, new.what, new.rationale);
 END;
+CREATE TABLE IF NOT EXISTS channel_canvases (
+  channel_id TEXT PRIMARY KEY,
+  canvas_id TEXT NOT NULL
+);
 `;
 
 export function openDb(path: string): Database.Database {

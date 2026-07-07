@@ -4,6 +4,7 @@ import type Database from 'better-sqlite3';
 import type { Config } from '../config.js';
 import type { LlmClient } from '../llm/client.js';
 import { captureThread, type SlackReader } from './capture.js';
+import { syncChannelCanvas, webCanvasClient } from './canvas.js';
 
 export function webClientReader(client: any, botUserId: string): SlackReader {
   return {
@@ -33,6 +34,11 @@ export function createSlackApp(config: Config, db: Database.Database, llm: LlmCl
       const reader = webClientReader(client, context.botUserId!);
       const r = await captureThread(db, llm, reader, event.channel, threadTs);
       await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs, text: r.text, blocks: r.blocks });
+      if (r.blocks) {
+        const sync = await syncChannelCanvas(db, webCanvasClient(client), event.channel);
+        if (!sync.ok) await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs,
+          text: `⚠️ Captured, but the canvas register couldn't be updated: ${sync.error}` });
+      }
     } catch (e) {
       console.error('capture failed', e);
       await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs,
