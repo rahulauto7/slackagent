@@ -7,6 +7,6 @@ Rules:
 - If nothing was decided or committed, return {"decisions":[],"commitments":[]}. Do NOT force output.
 - No prose, no markdown, JSON only.`;
 
-export function userPrompt(threadText: string): string {
-  return `Thread:\n"""\n${threadText}\n"""`;
+export function userPrompt(threadText: string, todayIso = new Date().toISOString().slice(0, 10)): string {
+  return `Today's date is ${todayIso}. Resolve relative or year-less dates (e.g. "Friday July 10", "by Wed") against it, never a past year.\nThread:\n"""\n${threadText}\n"""`;
 }
