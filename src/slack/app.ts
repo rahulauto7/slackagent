@@ -5,6 +5,7 @@ import type { Config } from '../config.js';
 import type { LlmClient } from '../llm/client.js';
 import { captureThread, type SlackReader } from './capture.js';
 import { syncChannelCanvas, webCanvasClient } from './canvas.js';
+import { completeCommitment, markBlocksDone } from './complete.js';
 
 export function webClientReader(client: any, botUserId: string): SlackReader {
   return {
@@ -44,6 +45,21 @@ export function createSlackApp(config: Config, db: Database.Database, llm: LlmCl
       await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs,
         text: `⚠️ Capture failed: ${(e as Error).message}` });
     }
+  });
+  app.action('mark_done', async ({ ack, body, action, client }) => {
+    await ack();
+    const id = Number((action as any).value);
+    const r = await completeCommitment(db,
+      (ch, sid) => client.chat.deleteScheduledMessage({ channel: ch, scheduled_message_id: sid }).then(() => {}), id);
+    const b: any = body;
+    if (!r.ok) {
+      await client.chat.postEphemeral({ channel: b.channel.id, user: b.user.id, text: `⚠️ ${r.error}` });
+      return;
+    }
+    if (b.message?.blocks) await client.chat.update({
+      channel: b.channel.id, ts: b.message.ts, text: b.message.text ?? 'Updated',
+      blocks: markBlocksDone(b.message.blocks, id, b.user.id) });
+    await syncChannelCanvas(db, webCanvasClient(client), r.commitment!.channel_id);
   });
   return app;
 }
