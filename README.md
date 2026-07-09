@@ -5,9 +5,12 @@ FollowThrough makes them first-class Slack objects: mention `@FollowThrough` on 
 and it extracts what was decided (and why) and who committed to what (and by when), writes
 everything to a per-channel **canvas register**, schedules **deadline nudges**, sends a
 **daily briefing** DM, answers **"what did we decide about X?"** with cited sources in the
-assistant pane, and exposes the whole log to external agents over a read-only **MCP server**.
+assistant pane, handles **"I'm on leave next week"** by rescheduling your reminders and
+flagging at-risk work, and exposes the whole log to external agents over a read-only
+**MCP server**.
 
-Capture → register → chase → complete → recall → briefing → MCP. Nothing falls through.
+Capture → register → chase → complete → recall → briefing → MCP. Nothing falls
+through — even when you're on vacation.
 
 ## Hackathon
 
@@ -46,6 +49,11 @@ Capture → register → chase → complete → recall → briefing → MCP. Not
   a digest of overdue / due-this-week / no-deadline items.
 - **Briefing:** weekdays 9:00 every owner with open commitments gets a DM — LLM focus line,
   overdue / due today / due this week (each with Mark done), decisions since last briefing.
+- **Leave:** tell the bot "I'm on leave July 14–16" — channel mention or assistant pane.
+  Reminders due while you're away move to your return morning, each affected channel gets
+  one ⚠️ at-risk flag asking who can cover, your daily briefing pauses, and the canvas
+  gains an **Out of office** section. "Who's out this week?" answers from the log;
+  "I'm back early" cancels the leave and restores reminders to their normal times.
 - **Recall:** open the FollowThrough assistant pane and ask "What did we decide about
   pricing and why?" — answers come only from recorded decisions, with permalink citations.
   "What's my day?" returns the on-demand briefing.
@@ -58,6 +66,11 @@ Capture → register → chase → complete → recall → briefing → MCP. Not
 - `npm test` — offline suite (vitest; LLM faked, Slack faked, in-memory SQLite).
 - `npm run smoke:extractor` — live extraction smoke against the configured LLM over
   10 fixture threads (clear decisions, buried commitments, banter, ambiguity).
+- `npm run smoke:leave` — live leave-intent parser smoke against the configured LLM
+  (7 phrasings covering declare / cancel / query / none).
+- `npm run verify:leave-live` — end-to-end leave check against the real workspace in
+  `.env`: declare → nudge moved to return morning → at-risk flag → canvas OOO section →
+  who's-out → cancel restores the nudge. Posts real Slack messages; sandbox only.
 
 ## Architecture
 

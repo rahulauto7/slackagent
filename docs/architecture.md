@@ -14,7 +14,9 @@ flowchart LR
   end
   subgraph "Node.js process"
     APP[Bolt app / Socket Mode] --> EX[Extractor: DeepSeek + Zod retry]
+    APP --> LV[Leave intent: keyword gate + LLM]
     EX --> DB[(SQLite + FTS5)]
+    LV --> DB
     APP --> DB
     CRON[node-cron: Mon digest / weekday 9:00 briefing] --> DB
     MCP[MCP server :3920] --> DB
@@ -30,9 +32,11 @@ flowchart LR
 | Component | Responsibility | Key file |
 |---|---|---|
 | Config | Env loading, verbatim var names, defaults | `src/config.ts` |
-| Store | Schema (CHECK on status), decisions FTS5, commitments, users, canvas ids | `src/store/db.ts` + `src/store/*Store.ts` |
+| Store | Schema (CHECK on status), decisions FTS5, commitments, users, leaves, canvas ids | `src/store/db.ts` + `src/store/*Store.ts` |
 | LLM client | One `complete(system, user)` call, swappable (FakeLlm in tests) | `src/llm/client.ts` |
 | Extractor | Prompt anchored to today's date → Zod parse → one retry with the error → refusal | `src/extractor/extract.ts` |
+| Leave intent | Keyword gate (`looksLikeLeave`) → LLM JSON intent (declare / cancel / query / none) with dates, Zod + one retry; `none` falls through to capture | `src/extractor/leave.ts` |
+| Leave flows | Declare / cancel / who's-out; reschedules nudges to the return morning, one ⚠️ at-risk flag per affected channel | `src/slack/leave.ts`, `src/store/leaveStore.ts` |
 | Capture | Thread fetch, owner resolution, insert, summary card | `src/slack/capture.ts`, `src/slack/ownerResolution.ts`, `src/slack/blocks.ts` |
 | Canvas register | Per-channel canvas markdown, create-once-then-edit sync | `src/slack/canvas.ts` |
 | Complete | Mark-done button: status flip, nudge cancel, message update, canvas resync | `src/slack/complete.ts` |
@@ -53,8 +57,27 @@ flowchart LR
   name. Raw-name owners never get DMs; they appear only in channel-facing output.
 - `nudge_scheduled_id` stores `"<dmChannelId>:<scheduledMessageId>"` so completion can call
   `chat.deleteScheduledMessage`.
+- `leaves(id, user_id, start_date, end_date, status, channel_id, created_at)`; `status`
+  CHECK-constrained to `active | cancelled`; dates are inclusive `YYYY-MM-DD` days.
+  Declaring a new leave cancels any previous active one (one active leave per user);
+  cancel is a status flip, so history is kept.
 - `users(user_id, last_briefed_at)` and `channel_canvases(channel_id, canvas_id)` are
   plumbing tables.
+
+## Leave awareness
+
+Every out-of-office touchpoint reads the same `leaves` table:
+
+- `scheduleNudge` checks `getLeaveCovering` at the nudge's fire time and defers it to the
+  return morning (day after `end_date`, 09:00 local).
+- Declaring leave rewrites already-scheduled nudges that would fire mid-leave and posts one
+  ⚠️ at-risk flag per affected channel; cancelling ("I'm back early") restores normal times.
+- The weekday-9:00 briefing cron skips users on leave; an on-demand "what's my day?" still
+  answers, prefixed with a paused-briefings banner.
+- The Monday digest adds an "Out this week" line; the canvas register adds an
+  "Out of office" section covering the next 14 days.
+- Leave detection is fail-open: the `none` intent (or any parser failure) falls through to
+  the normal capture flow, so the feature cannot break existing behavior.
 
 ## Error-handling principles
 
