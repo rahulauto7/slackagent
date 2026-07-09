@@ -4,7 +4,7 @@ import type { LlmClient } from '../llm/client.js';
 
 export class ExtractionParseError extends Error {}
 
-function stripFences(s: string): string {
+export function stripFences(s: string): string {
   return s.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
 }
 
