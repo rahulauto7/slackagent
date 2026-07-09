@@ -35,6 +35,15 @@ CREATE TABLE IF NOT EXISTS channel_canvases (
   channel_id TEXT PRIMARY KEY,
   canvas_id TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS leaves (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','cancelled')),
+  channel_id TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
 `;
 
 export function openDb(path: string): Database.Database {

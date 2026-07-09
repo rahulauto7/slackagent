@@ -11,6 +11,11 @@ export interface Commitment {
   source_permalink: string; nudge_scheduled_id: string | null; created_at: string;
 }
 
+export interface Leave {
+  id: number; user_id: string; start_date: string; end_date: string;
+  status: 'active' | 'cancelled'; channel_id: string; created_at: string;
+}
+
 export function isSlackUserId(owner: string): boolean {
   return /^[UW][A-Z0-9]{2,}$/.test(owner);
 }
