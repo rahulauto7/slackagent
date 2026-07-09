@@ -5,7 +5,9 @@
   "scripts": {
     "test": "vitest run",
     "dev": "tsx src/index.ts",
-    "smoke:extractor": "tsx scripts/smoke-extractor.ts"
+    "smoke:extractor": "tsx scripts/smoke-extractor.ts",
+    "smoke:leave": "tsx scripts/smoke-leave.ts",
+    "verify:leave-live": "tsx scripts/live-leave-verify.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
