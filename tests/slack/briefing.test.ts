@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openDb } from '../../src/store/db.js';
 import { insertCommitment, flipSlipped } from '../../src/store/commitmentStore.js';
+import { insertLeave } from '../../src/store/leaveStore.js';
 import { insertDecision } from '../../src/store/decisionStore.js';
 import { buildBriefingSections, composeFocusLine, onDemandBriefing, runDailyBriefings } from '../../src/slack/briefing.js';
 import { FakeLlm } from '../helpers/fakeLlm.js';
@@ -42,6 +43,12 @@ describe('onDemandBriefing', () => {
     expect(r.text).toMatch(/clear/);
     expect(r.blocks).toBeUndefined();
   });
+  it('prepends a leave banner when the asker is on leave', async () => {
+    insertCommitment(db, { ...base, task: 'today', deadline: '2026-07-06' });
+    insertLeave(db, { user_id: 'U0AB12CD3', start_date: '2026-07-05', end_date: '2026-07-08', channel_id: 'C1' });
+    const r = await onDemandBriefing(db, new FakeLlm(['Focus.']), 'U0AB12CD3', now);
+    expect(JSON.stringify(r.blocks)).toContain("on leave until 2026-07-08");
+  });
 });
 
 describe('runDailyBriefings', () => {
@@ -52,5 +59,13 @@ describe('runDailyBriefings', () => {
       async (u) => { sent.push(u); }, now);
     expect(n).toBe(1);
     expect(sent).toEqual(['U0AB12CD3']);
+  });
+  it('skips owners who are on leave today', async () => {
+    insertCommitment(db, { ...base, task: 'late', deadline: '2026-07-01' });
+    insertLeave(db, { user_id: 'U0AB12CD3', start_date: '2026-07-05', end_date: '2026-07-08', channel_id: 'C1' });
+    const sent: string[] = [];
+    const n = await runDailyBriefings(db, new FakeLlm(['x']), async (u) => { sent.push(u); }, now);
+    expect(n).toBe(0);
+    expect(sent).toEqual([]);
   });
 });

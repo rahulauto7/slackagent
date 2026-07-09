@@ -1,7 +1,9 @@
 import type Database from 'better-sqlite3';
 import { type Commitment, isSlackUserId } from '../store/types.js';
 import { setNudgeScheduledId } from '../store/commitmentStore.js';
-import { nudgeBlocks, ownerLabel } from './blocks.js';
+import { getLeaveCovering, listLeavesOverlapping } from '../store/leaveStore.js';
+import { addDays, localDay } from '../util/dates.js';
+import { nudgeBlocks, ownerLabel, userLabel } from './blocks.js';
 
 export function computeNudgePostAt(deadline: string, now: Date): number | null {
   const at = deadline.length === 10
@@ -27,8 +29,13 @@ export async function scheduleNudge(
   db: Database.Database, sender: NudgeSender, c: Commitment, now: Date = new Date(),
 ): Promise<boolean> {
   if (!c.deadline || !isSlackUserId(c.owner_user_id)) return false;
-  const postAt = computeNudgePostAt(c.deadline, now);
+  let postAt = computeNudgePostAt(c.deadline, now);
   if (postAt === null) return false;
+  const leave = getLeaveCovering(db, c.owner_user_id, localDay(new Date(postAt * 1000)));
+  if (leave) {
+    const returnAt = Math.floor(new Date(`${addDays(leave.end_date, 1)}T09:00:00`).getTime() / 1000);
+    if (returnAt > now.getTime() / 1000) postAt = returnAt;
+  }
   const dm = await sender.openDm(c.owner_user_id);
   const id = await sender.schedule(dm, postAt, `Reminder: ${c.task} is due ${c.deadline}`, nudgeBlocks(c));
   setNudgeScheduledId(db, c.id, `${dm}:${id}`);
@@ -45,9 +52,14 @@ export function buildWeeklyDigest(db: Database.Database, channelId: string, now:
   const overdue = rows.filter(c => c.status === 'slipped').map(line);
   const dueSoon = rows.filter(c => c.status === 'open' && c.deadline && c.deadline.slice(0, 10) >= today && c.deadline.slice(0, 10) <= weekEnd).map(line);
   const noDeadline = rows.filter(c => !c.deadline).map(line);
+  const owners = new Set(rows.map(c => c.owner_user_id));
+  const out = listLeavesOverlapping(db, today, weekEnd)
+    .filter(l => owners.has(l.user_id))
+    .map(l => `• ${userLabel(l.user_id)} — out ${l.start_date} to ${l.end_date} (back ${addDays(l.end_date, 1)})`);
   const parts = ['*📋 Weekly FollowThrough digest*'];
   if (overdue.length) parts.push(`*Overdue:*\n${overdue.join('\n')}`);
   if (dueSoon.length) parts.push(`*Due this week:*\n${dueSoon.join('\n')}`);
+  if (out.length) parts.push(`*🏖️ Out this week:*\n${out.join('\n')}`);
   if (noDeadline.length) parts.push(`*No deadline set (needs one?):*\n${noDeadline.join('\n')}`);
   return parts.join('\n\n');
 }

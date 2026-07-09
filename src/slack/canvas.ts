@@ -1,8 +1,10 @@
 import type Database from 'better-sqlite3';
 import type { Commitment, Decision } from '../store/types.js';
-import { ownerLabel } from './blocks.js';
+import { listLeavesOverlapping } from '../store/leaveStore.js';
+import { addDays, localDay } from '../util/dates.js';
+import { ownerLabel, userLabel } from './blocks.js';
 
-export function canvasMarkdown(db: Database.Database, channelId: string): string {
+export function canvasMarkdown(db: Database.Database, channelId: string, now: Date = new Date()): string {
   const decisions = db.prepare(`SELECT * FROM decisions WHERE channel_id = ? ORDER BY created_at DESC`)
     .all(channelId) as Decision[];
   const open = db.prepare(`SELECT * FROM commitments WHERE channel_id = ? AND status IN ('open','slipped')
@@ -13,10 +15,16 @@ export function canvasMarkdown(db: Database.Database, channelId: string): string
   const dec = decisions.map(d => `- **${d.what}**${d.rationale ? ` — _${d.rationale}_` : ''} ([source](${d.source_permalink}))`);
   const op = open.map(c => `- ${c.status === 'slipped' ? '⚠️ overdue: ' : ''}${ownerLabel(c)} — ${c.task}${c.deadline ? ` (due ${c.deadline})` : ''}`);
   const dn = done.map(c => `- ✅ ${ownerLabel(c)} — ${c.task}`);
+  const today = localDay(now);
+  const owners = new Set(open.map(c => c.owner_user_id));
+  const ooo = listLeavesOverlapping(db, today, addDays(today, 14))
+    .filter(l => owners.has(l.user_id))
+    .map(l => `- 🏖️ ${userLabel(l.user_id)} — out ${l.start_date} to ${l.end_date} (back ${addDays(l.end_date, 1)})`);
   return [
     '# 📒 FollowThrough Register', '',
     '## Decisions', ...(dec.length ? dec : ['_None yet._']), '',
     '## Open commitments', ...(op.length ? op : ['_None — all clear._']), '',
+    ...(ooo.length ? ['## Out of office', ...ooo, ''] : []),
     '## Done', ...(dn.length ? dn : ['_None yet._']),
   ].join('\n');
 }

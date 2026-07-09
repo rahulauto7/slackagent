@@ -3,7 +3,8 @@ import type Database from 'better-sqlite3';
 import { openDb } from '../../src/store/db.js';
 import { insertCommitment, getCommitment, setNudgeScheduledId } from '../../src/store/commitmentStore.js';
 import { insertLeave, getLeaveCovering } from '../../src/store/leaveStore.js';
-import { declareLeave, cancelLeave, whosOut } from '../../src/slack/leave.js';
+import { declareLeave, cancelLeave, whosOut, handleLeaveMessage } from '../../src/slack/leave.js';
+import { FakeLlm } from '../helpers/fakeLlm.js';
 
 const now = new Date('2026-07-09T12:00:00');
 let db: Database.Database;
@@ -112,6 +113,44 @@ describe('cancelLeave', () => {
     const f = fakes();
     const r = await cancelLeave(db, f.sender, f.messenger, OWNER, now);
     expect(r.text).toMatch(/no active leave/i);
+  });
+});
+
+describe('handleLeaveMessage', () => {
+  const msg = (text: string) => ({ text, userId: OWNER, channelId: 'C1' });
+  it('returns null without calling the LLM when the gate does not match', async () => {
+    const f = fakes();
+    const llm = new FakeLlm([]); // would throw if called
+    expect(await handleLeaveMessage(db, llm, f.sender, f.messenger, msg('ship the feature Friday'), now)).toBeNull();
+  });
+  it('returns null when the LLM classifies the message as none', async () => {
+    const f = fakes();
+    const llm = new FakeLlm(['{"intent":"none","start_date":null,"end_date":null}']);
+    expect(await handleLeaveMessage(db, llm, f.sender, f.messenger, msg('we rolled out of office hours'), now)).toBeNull();
+  });
+  it('routes a declaration end to end', async () => {
+    const f = fakes();
+    const llm = new FakeLlm(['{"intent":"declare","start_date":"2026-07-10","end_date":"2026-07-14"}']);
+    const r = await handleLeaveMessage(db, llm, f.sender, f.messenger, msg("I'm on leave July 10-14"), now);
+    expect(r!.text).toContain('2026-07-10');
+    expect(getLeaveCovering(db, OWNER, '2026-07-12')).toBeTruthy();
+  });
+  it('asks for dates when a declaration has none', async () => {
+    const f = fakes();
+    const llm = new FakeLlm(['{"intent":"declare","start_date":null,"end_date":null}']);
+    const r = await handleLeaveMessage(db, llm, f.sender, f.messenger, msg("I'm going on leave soon"), now);
+    expect(r!.text).toMatch(/dates/i);
+    expect(getLeaveCovering(db, OWNER, '2026-07-12')).toBeUndefined();
+  });
+  it('routes cancel and query intents', async () => {
+    insertLeave(db, { user_id: OWNER, start_date: '2026-07-10', end_date: '2026-07-14', channel_id: 'C1' });
+    const f = fakes();
+    const llmQ = new FakeLlm(['{"intent":"query","start_date":null,"end_date":null}']);
+    const q = await handleLeaveMessage(db, llmQ, f.sender, f.messenger, msg("who's out this week?"), now);
+    expect(q!.text).toContain(`<@${OWNER}>`);
+    const llmC = new FakeLlm(['{"intent":"cancel","start_date":null,"end_date":null}']);
+    const c = await handleLeaveMessage(db, llmC, f.sender, f.messenger, msg("back early, cancel my leave"), now);
+    expect(c!.text).toMatch(/cancelled/);
   });
 });
 

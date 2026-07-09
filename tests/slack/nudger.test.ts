@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type Database from 'better-sqlite3';
 import { openDb } from '../../src/store/db.js';
 import { insertCommitment, getCommitment, flipSlipped } from '../../src/store/commitmentStore.js';
+import { insertLeave } from '../../src/store/leaveStore.js';
 import { computeNudgePostAt, scheduleNudge, buildWeeklyDigest } from '../../src/slack/nudger.js';
 
 const now = new Date('2026-07-06T12:00:00');
@@ -44,6 +45,14 @@ describe('scheduleNudge', () => {
     expect(await scheduleNudge(db, s, insertCommitment(db, { ...base, deadline: null }), now)).toBe(false);
     expect(s.calls).toHaveLength(0);
   });
+  it('moves the nudge to the return morning when the owner is on leave at fire time', async () => {
+    insertLeave(db, { user_id: base.owner_user_id, start_date: '2026-07-09', end_date: '2026-07-12', channel_id: 'C1' });
+    const c = insertCommitment(db, { ...base, deadline: '2026-07-10' });
+    const s = sender();
+    expect(await scheduleNudge(db, s, c, now)).toBe(true);
+    const d = new Date(s.calls[0][1] * 1000);
+    expect([d.getMonth() + 1, d.getDate(), d.getHours()]).toEqual([7, 13, 9]);
+  });
 });
 
 describe('buildWeeklyDigest', () => {
@@ -57,5 +66,14 @@ describe('buildWeeklyDigest', () => {
     expect(md).toContain('due soon');
     expect(md).toContain('no deadline task');
     expect(buildWeeklyDigest(db, 'C-empty', now)).toBeNull();
+  });
+  it('lists owners on leave this week in an Out this week section', () => {
+    insertCommitment(db, { ...base, deadline: '2026-07-08' });
+    insertLeave(db, { user_id: base.owner_user_id, start_date: '2026-07-08', end_date: '2026-07-10', channel_id: 'C1' });
+    insertLeave(db, { user_id: 'U9ZZ99ZZ9', start_date: '2026-07-08', end_date: '2026-07-10', channel_id: 'C1' });
+    const md = buildWeeklyDigest(db, 'C1', now)!;
+    expect(md).toContain('Out this week');
+    expect(md).toContain(`<@${base.owner_user_id}>`);
+    expect(md).not.toContain('U9ZZ99ZZ9'); // no open commitments in this channel
   });
 });

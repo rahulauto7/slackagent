@@ -7,8 +7,17 @@ import { captureThread, type SlackReader } from './capture.js';
 import { syncChannelCanvas, webCanvasClient } from './canvas.js';
 import { completeCommitment, markBlocksDone } from './complete.js';
 import { scheduleNudge, webNudgeSender } from './nudger.js';
+import { handleLeaveMessage, type LeaveMessenger } from './leave.js';
 import { isBriefingAsk, answerRecall } from './recall.js';
 import { onDemandBriefing } from './briefing.js';
+
+export function webLeaveMessenger(client: any): LeaveMessenger {
+  return {
+    deleteScheduled: (channel, scheduledId) =>
+      client.chat.deleteScheduledMessage({ channel, scheduled_message_id: scheduledId }).then(() => {}),
+    post: (channel, text) => client.chat.postMessage({ channel, text }).then(() => {}),
+  };
+}
 
 export function webClientReader(client: any, botUserId: string): SlackReader {
   return {
@@ -35,6 +44,14 @@ export function createSlackApp(config: Config, db: Database.Database, llm: LlmCl
   app.event('app_mention', async ({ event, client, context }) => {
     const threadTs = (event as any).thread_ts ?? event.ts;
     try {
+      const text = (event.text ?? '').replace(new RegExp(`<@${context.botUserId}>`, 'g'), '').trim();
+      const leave = await handleLeaveMessage(db, llm, webNudgeSender(client), webLeaveMessenger(client),
+        { text, userId: (event as any).user, channelId: event.channel });
+      if (leave) {
+        await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs, text: leave.text });
+        for (const ch of leave.channels) await syncChannelCanvas(db, webCanvasClient(client), ch);
+        return;
+      }
       const reader = webClientReader(client, context.botUserId!);
       const r = await captureThread(db, llm, reader, event.channel, threadTs);
       await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs, text: r.text, blocks: r.blocks });
@@ -81,6 +98,13 @@ export function createSlackApp(config: Config, db: Database.Database, llm: LlmCl
         if (isBriefingAsk(text)) {
           const r = await onDemandBriefing(db, llm, userId, new Date());
           await say({ text: r.text, blocks: r.blocks });
+          return;
+        }
+        const leave = await handleLeaveMessage(db, llm, webNudgeSender(client), webLeaveMessenger(client),
+          { text, userId, channelId: '' });
+        if (leave) {
+          await say(leave.text);
+          for (const ch of leave.channels) await syncChannelCanvas(db, webCanvasClient(client), ch);
           return;
         }
         const searchContext = async (q: string): Promise<string[]> => {

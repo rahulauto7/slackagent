@@ -1,7 +1,11 @@
 import { type Commitment, type Decision, isSlackUserId } from '../store/types.js';
 
+export function userLabel(userId: string): string {
+  return isSlackUserId(userId) ? `<@${userId}>` : userId;
+}
+
 export function ownerLabel(c: Commitment): string {
-  return isSlackUserId(c.owner_user_id) ? `<@${c.owner_user_id}>` : c.owner_user_id;
+  return userLabel(c.owner_user_id);
 }
 
 export function markDoneButton(id: number) {

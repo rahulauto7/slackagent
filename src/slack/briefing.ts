@@ -3,7 +3,9 @@ import type { Commitment, Decision } from '../store/types.js';
 import type { LlmClient } from '../llm/client.js';
 import { listOpenCommitments, flipSlipped, listOwnersWithOpen } from '../store/commitmentStore.js';
 import { listDecisionsForChannelsSince } from '../store/decisionStore.js';
+import { getLeaveCovering } from '../store/leaveStore.js';
 import { getLastBriefedAt, setLastBriefedAt } from '../store/userStore.js';
+import { localDay } from '../util/dates.js';
 import { markDoneButton } from './blocks.js';
 
 export type BriefingSections = { overdue: Commitment[]; dueToday: Commitment[]; dueThisWeek: Commitment[]; decisions: Decision[] };
@@ -53,7 +55,11 @@ export async function onDemandBriefing(
   const s = buildBriefingSections(db, userId, now);
   if (!s.overdue.length && !s.dueToday.length && !s.dueThisWeek.length)
     return { text: "You're clear — no open commitments. 🎉" };
-  return { text: 'Your daily briefing', blocks: briefingBlocks(s, await composeFocusLine(llm, s)) };
+  const blocks = briefingBlocks(s, await composeFocusLine(llm, s));
+  const leave = getLeaveCovering(db, userId, localDay(now));
+  if (leave) blocks.unshift({ type: 'section', text: { type: 'mrkdwn',
+    text: `🏖️ You're on leave until ${leave.end_date} — briefings are paused, but since you asked:` } });
+  return { text: 'Your daily briefing', blocks };
 }
 
 export async function runDailyBriefings(
@@ -63,6 +69,7 @@ export async function runDailyBriefings(
   flipSlipped(db, now.toISOString());
   let count = 0;
   for (const userId of listOwnersWithOpen(db)) {
+    if (getLeaveCovering(db, userId, localDay(now))) continue;
     const s = buildBriefingSections(db, userId, now);
     await sendDm(userId, 'Your daily briefing', briefingBlocks(s, await composeFocusLine(llm, s)));
     setLastBriefedAt(db, userId, now.toISOString());

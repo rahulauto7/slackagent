@@ -1,7 +1,10 @@
 import type Database from 'better-sqlite3';
 import type { Commitment } from '../store/types.js';
+import type { LlmClient } from '../llm/client.js';
 import { listOpenCommitments, setNudgeScheduledId } from '../store/commitmentStore.js';
 import { insertLeave, cancelActiveLeaves, listLeavesOverlapping } from '../store/leaveStore.js';
+import { looksLikeLeave, parseLeaveIntent } from '../extractor/leave.js';
+import { addDays, localDay } from '../util/dates.js';
 import { computeNudgePostAt, type NudgeSender } from './nudger.js';
 import { nudgeBlocks } from './blocks.js';
 
@@ -9,15 +12,6 @@ export interface LeaveMessenger {
   deleteScheduled(channel: string, scheduledId: string): Promise<void>;
   post(channel: string, text: string): Promise<void>;
 }
-
-export function addDays(dayIso: string, n: number): string {
-  const d = new Date(`${dayIso}T12:00:00`);
-  d.setDate(d.getDate() + n);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-const localDay = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function dueDuringLeave(c: Commitment, start: string, end: string, now: Date): boolean {
   if (!c.deadline) return false;
@@ -94,6 +88,27 @@ export async function cancelLeave(
   }
   return { text: '🏖️ Welcome back! Your leave is cancelled and reminders are back to normal.',
            channels: [...new Set(mine.map(c => c.channel_id))] };
+}
+
+export async function handleLeaveMessage(
+  db: Database.Database, llm: LlmClient, sender: NudgeSender, messenger: LeaveMessenger,
+  msg: { text: string; userId: string; channelId: string },
+  now: Date = new Date(),
+): Promise<{ text: string; channels: string[] } | null> {
+  if (!looksLikeLeave(msg.text)) return null;
+  const intent = await parseLeaveIntent(msg.text, llm, now);
+  switch (intent.intent) {
+    case 'declare':
+      if (!intent.start_date) return {
+        text: "🏖️ Happy to log your leave — I just couldn't figure out the dates. Try \"I'm on leave July 10-14\".",
+        channels: [] };
+      return declareLeave(db, sender, messenger, {
+        userId: msg.userId, startDate: intent.start_date,
+        endDate: intent.end_date ?? intent.start_date, channelId: msg.channelId }, now);
+    case 'cancel': return cancelLeave(db, sender, messenger, msg.userId, now);
+    case 'query': return { text: whosOut(db, now), channels: [] };
+    case 'none': return null;
+  }
 }
 
 export function whosOut(db: Database.Database, now: Date = new Date()): string {

@@ -3,6 +3,7 @@ import type Database from 'better-sqlite3';
 import { openDb } from '../../src/store/db.js';
 import { insertDecision } from '../../src/store/decisionStore.js';
 import { insertCommitment, markDone } from '../../src/store/commitmentStore.js';
+import { insertLeave } from '../../src/store/leaveStore.js';
 import { canvasMarkdown, syncChannelCanvas } from '../../src/slack/canvas.js';
 
 let db: Database.Database;
@@ -13,6 +14,15 @@ beforeEach(() => {
 });
 
 describe('canvasMarkdown', () => {
+  it('shows an Out of office section for owners of open commitments with upcoming leave', () => {
+    const now = new Date('2026-07-06T12:00:00');
+    insertLeave(db, { user_id: 'U2', start_date: '2026-07-09', end_date: '2026-07-11', channel_id: 'C1' });
+    insertLeave(db, { user_id: 'U-elsewhere', start_date: '2026-07-09', end_date: '2026-07-11', channel_id: 'C9' });
+    const md = canvasMarkdown(db, 'C1', now);
+    expect(md).toContain('Out of office');
+    expect(md).toContain('U2 — out 2026-07-09 to 2026-07-11 (back 2026-07-12)');
+    expect(md).not.toContain('U-elsewhere');
+  });
   it('renders decisions, open and done sections scoped to the channel', () => {
     const done = insertCommitment(db, { channel_id: 'C1', owner_user_id: 'U2', task: 'old task', deadline: null, source_permalink: 'https://x/p' });
     markDone(db, done.id);
