@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1200px; height: 800px; overflow: hidden;
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+    background: linear-gradient(135deg, #3F0E40 0%, #4A154B 55%, #611f69 100%);
+    color: #fff;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 0 90px;
+    position: relative;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-size: 26px; font-weight: 600; letter-spacing: 0.5px;
+    color: #ECB22E; margin-bottom: 36px;
+  }
+  .badge .dot { width: 12px; height: 12px; border-radius: 50%; background: #2EB67D; }
+  h1 {
+    font-size: 110px; font-weight: 800; letter-spacing: -3px;
+    line-height: 1.0; margin-bottom: 28px;
+  }
+  h1 .thru { color: #2EB67D; }
+  .tagline {
+    font-size: 40px; font-weight: 400; line-height: 1.35;
+    color: rgba(255,255,255,0.92); max-width: 950px; margin-bottom: 56px;
+  }
+  .tagline b { color: #ECB22E; font-weight: 600; }
+  .chips { display: flex; gap: 16px; flex-wrap: wrap; }
+  .chip {
+    font-size: 24px; font-weight: 600; padding: 12px 26px;
+    border-radius: 999px; background: rgba(255,255,255,0.10);
+    border: 2px solid rgba(255,255,255,0.25);
+  }
+  .pipeline {
+    position: absolute; bottom: 44px; left: 90px;
+    font-size: 22px; letter-spacing: 1px; color: rgba(255,255,255,0.55);
+    font-weight: 500;
+  }
+  .corner {
+    position: absolute; top: -160px; right: -160px;
+    width: 480px; height: 480px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(54,197,240,0.28) 0%, rgba(54,197,240,0) 70%);
+  }
+  .corner2 {
+    position: absolute; bottom: -200px; right: 60px;
+    width: 520px; height: 520px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(224,30,90,0.22) 0%, rgba(224,30,90,0) 70%);
+  }
+</style>
+</head>
+<body>
+  <div class="corner"></div>
+  <div class="corner2"></div>
+  <div><span class="badge"><span class="dot"></span>SLACK AGENT · FOR ORGANIZATIONS</span></div>
+  <h1>Follow<span class="thru">Through</span></h1>
+  <div class="tagline">The Slack agent that turns thread chatter into <b>tracked decisions&nbsp;&amp;&nbsp;commitments</b> — and chases them until they're done.</div>
+  <div class="chips">
+    <span class="chip">📌 Canvas register</span>
+    <span class="chip">⏰ Deadline nudges</span>
+    <span class="chip">🌴 Leave-aware</span>
+    <span class="chip">🧠 Cited recall</span>
+    <span class="chip">🔌 MCP server</span>
+  </div>
+  <div class="pipeline">capture → register → chase → complete → recall → briefing → mcp</div>
+</body>
+</html>

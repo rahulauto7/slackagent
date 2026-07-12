@@ -1,0 +1,42 @@
+flowchart LR
+  classDef slack fill:#4A154B,stroke:#4A154B,color:#ffffff
+  classDef node fill:#1a73e8,stroke:#1a73e8,color:#ffffff
+  classDef store fill:#0b8043,stroke:#0b8043,color:#ffffff
+  classDef ext fill:#f29900,stroke:#f29900,color:#ffffff
+
+  subgraph SLACK["Slack workspace"]
+    TH["Channel thread"]
+    AS["Assistant pane"]
+    CV["Channel canvas"]
+    DM["DMs: nudges + briefings"]
+  end
+
+  subgraph NODE["Node.js process"]
+    APP["Bolt app (Socket Mode)"]
+    EX["Extractor: DeepSeek + Zod retry"]
+    LV["Leave intent: keyword gate + LLM"]
+    CRON["node-cron: Mon digest / weekday 9:00 briefing"]
+    MCP["MCP server :3920"]
+    DB[("SQLite + FTS5")]
+  end
+
+  CLD["Claude Desktop / external agents"]
+
+  TH -->|"@FollowThrough"| APP
+  AS --> APP
+  APP --> EX
+  APP --> LV
+  EX --> DB
+  LV --> DB
+  APP --> DB
+  CRON --> DB
+  MCP --> DB
+  APP --> CV
+  APP --> DM
+  CRON --> DM
+  CLD -->|"Streamable HTTP"| MCP
+
+  class TH,AS,CV,DM slack
+  class APP,EX,LV,CRON,MCP node
+  class DB store
+  class CLD ext
