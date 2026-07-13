@@ -8,10 +8,10 @@ Rehearse once end-to-end with `npm run dev` running, `#proj-demo` cleared (delet
 | 0:00 | Hook — Slack channel scrolling | "Your team makes decisions and promises in Slack every day — and loses them by Friday. FollowThrough makes them impossible to lose." |
 | 0:20 | Capture | Post the messy 5-message thread (below). Reply `@FollowThrough`. Card appears: decision + rationale, commitment with owner/deadline, **Mark done ✅**. "One mention. It pulled out what we decided, why, and who owes what by when." |
 | 0:50 | Canvas | Open the channel canvas `📒 FollowThrough Register`. "Every channel keeps a living register — decisions, open commitments, done. No one maintains it; it maintains itself." |
-| 1:05 | Leave | In-channel: `@FollowThrough I'm on leave Thursday and Friday`. Confirmation shows the reminder moved to the return morning; the channel gets a ⚠️ flag listing the Stripe commitment with "Anyone covering?". Flash the canvas **Out of office** section, then assistant pane: "who's out this week?". End with `@FollowThrough I'm back early — cancel my leave`. "Tell it you're out like you'd tell a teammate — it moves your reminders to your return, flags what's at risk so the team can cover, and everyone can see who's away." |
+| 1:05 | Leave | In-channel: `@FollowThrough I'm on leave Thursday and Friday`. Confirmation shows the reminder moved to the return morning; the channel gets a ⚠️ flag listing the Stripe commitment with "Anyone covering?". Flash the canvas **Out of office** section, then DM the bot `who's out this week?`. End with `@FollowThrough I'm back early — cancel my leave`. "Tell it you're out like you'd tell a teammate — it moves your reminders to your return, flags what's at risk so the team can cover, and everyone can see who's away." |
 | 1:45 | Briefing DM | Trigger the briefing (command below). Show the DM: focus line, overdue/due sections. "Every weekday at 9, owners get their day — with the receipts." |
 | 2:05 | Mark done | Click **Mark done ✅** in the DM. Show "✅ Done (by @rahul)", canvas item moved to Done. "One click closes the loop — and cancels the pending nudge." |
-| 2:20 | Recall | Assistant pane: "What did we decide about billing and why?" → cited answer with permalink. "Institutional memory, with sources — it refuses to make things up." |
+| 2:20 | Recall | DM the FollowThrough bot: "What did we decide about billing and why?" → cited answer with permalink. "Institutional memory, with sources — it refuses to make things up." |
 | 2:40 | MCP | Claude Desktop connected to `http://localhost:3920/mcp`; ask "search our decision log for billing" → `search_decisions` returns the record. "The same memory is an MCP server — any agent in your org can query it." |
 | 2:55 | Close | "FollowThrough — decisions and commitments as first-class Slack objects. Agent for Organizations track. Teams stop paying the forgot-it tax." |
 
@@ -44,6 +44,13 @@ same code path as the weekday 9:00 cron.)
 - [ ] `npx vitest run`, `npm run smoke:extractor`, and `npm run smoke:leave` green
 - [ ] Leave beat rehearsed once (`npm run verify:leave-live` green, then clean the DB again)
 - [ ] Fresh DB (`rm -f followthrough.db*`), old canvas deleted, `npm run dev` restarted
-- [ ] Bot invited to `#proj-demo`; assistant pane opens with suggested prompts
-- [ ] Claude Desktop connector for `http://localhost:3920/mcp` already added
+- [ ] Bot invited to `#proj-demo`; DM to FollowThrough opens cleanly and answers
+      recall queries (the split-pane Assistant view with prompt chips is
+      workspace-plan-gated and is **not** required for the demo — plain DM works)
+- [ ] Claude Desktop MCP wired up via `mcpServers.followthrough` in `~/Library/Application Support/Claude/claude_desktop_config.json` (`npx -y mcp-remote http://localhost:3920/mcp --transport http-only --allow-http` — the Connectors UI rejects plain-http URLs); restart Claude Desktop after the server is up
 - [ ] Screen recorder at 1080p, Slack sidebar tidy, notifications off
+
+## After recording — submission requirements (deadline Jul 13, 5:00pm PDT)
+
+- [ ] Invite `slackhack@salesforce.com` and `testing@devpost.com` to the sandbox workspace
+- [ ] Put the sandbox URL in the Devpost submission form (judges test in it)
