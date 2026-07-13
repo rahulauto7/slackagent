@@ -9,7 +9,7 @@ export const LeaveIntentSchema = z.object({
 });
 export type LeaveIntent = z.infer<typeof LeaveIntentSchema>;
 
-const GATE = /\b(ooo|out of office|on leave|vacation|pto|holiday|time off|day off|back early|cancel my leave|who's out|who is out|i'm out|i am out)\b/i;
+const GATE = /\b(ooo|out of office|on leave|be leave|vacation|pto|holiday|time off|day off|back early|cancel my leave|who'?s out|who is out|i'?m out|i am out|(i'?ll|(i )?will) be (out|off|away|leave|leaving|on leave|traveling|gone|ooo)|won'?t be (in|around|available|here))\b/i;
 
 export function looksLikeLeave(text: string): boolean {
   return GATE.test(text.replace(/[‘’]/g, "'"));

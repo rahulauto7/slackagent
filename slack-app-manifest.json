@@ -5,6 +5,10 @@
     "background_color": "#1a1d29"
   },
   "features": {
+    "app_home": {
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
     "bot_user": { "display_name": "FollowThrough", "always_online": true },
     "assistant_view": {
       "assistant_description": "Ask what was decided and why, or what's on your plate today.",
@@ -17,7 +21,8 @@
         "app_mentions:read", "assistant:write", "canvases:read", "canvases:write",
         "channels:history", "channels:join", "channels:read", "chat:write",
         "groups:history", "im:history", "im:write", "users:read"
-      ]
+      ],
+      "user": ["search:read"]
     }
   },
   "settings": {

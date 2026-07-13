@@ -8,7 +8,7 @@ import { syncChannelCanvas, webCanvasClient } from './canvas.js';
 import { completeCommitment, markBlocksDone } from './complete.js';
 import { scheduleNudge, webNudgeSender } from './nudger.js';
 import { handleLeaveMessage, type LeaveMessenger } from './leave.js';
-import { isBriefingAsk, answerRecall } from './recall.js';
+import { isBriefingAsk, isRecallAsk, answerRecall } from './recall.js';
 import { onDemandBriefing } from './briefing.js';
 
 export function webLeaveMessenger(client: any): LeaveMessenger {
@@ -52,6 +52,16 @@ export function createSlackApp(config: Config, db: Database.Database, llm: LlmCl
         for (const ch of leave.channels) await syncChannelCanvas(db, webCanvasClient(client), ch);
         return;
       }
+      if (isRecallAsk(text)) {
+        const searchContext = async (q: string): Promise<string[]> => {
+          if (!config.slackUserToken) return [];
+          const res = await client.search.messages({ token: config.slackUserToken, query: q, count: 5 });
+          return (res.messages?.matches ?? []).map((m: any) => `${m.username}: ${m.text}`);
+        };
+        const answer = await answerRecall(db, llm, text, searchContext);
+        await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs, text: answer });
+        return;
+      }
       const reader = webClientReader(client, context.botUserId!);
       const r = await captureThread(db, llm, reader, event.channel, threadTs);
       await client.chat.postMessage({ channel: event.channel, thread_ts: threadTs, text: r.text, blocks: r.blocks });
@@ -82,6 +92,33 @@ export function createSlackApp(config: Config, db: Database.Database, llm: LlmCl
       blocks: markBlocksDone(b.message.blocks, id, b.user.id) });
     await syncChannelCanvas(db, webCanvasClient(client), r.commitment!.channel_id);
   });
+  const answerUserQuery = async (client: any, text: string, userId: string,
+    say: (msg: any) => Promise<unknown>, setStatus?: (s: string) => Promise<unknown>) => {
+    try {
+      await setStatus?.('thinking...');
+      if (isBriefingAsk(text)) {
+        const r = await onDemandBriefing(db, llm, userId, new Date());
+        await say({ text: r.text, blocks: r.blocks });
+        return;
+      }
+      const leave = await handleLeaveMessage(db, llm, webNudgeSender(client), webLeaveMessenger(client),
+        { text, userId, channelId: '' });
+      if (leave) {
+        await say(leave.text);
+        for (const ch of leave.channels) await syncChannelCanvas(db, webCanvasClient(client), ch);
+        return;
+      }
+      const searchContext = async (q: string): Promise<string[]> => {
+        if (!config.slackUserToken) return [];
+        const res = await client.search.messages({ token: config.slackUserToken, query: q, count: 5 });
+        return (res.messages?.matches ?? []).map((m: any) => `${m.username}: ${m.text}`);
+      };
+      await say(await answerRecall(db, llm, text, searchContext));
+    } catch (e) {
+      console.error('assistant failed', e);
+      await say(`⚠️ I couldn't answer that: ${(e as Error).message}`);
+    }
+  };
   const assistant = new Assistant({
     threadStarted: async ({ say, setSuggestedPrompts }) => {
       await say('Hi! Ask me what was decided and why, or what\'s on your plate.');
@@ -91,34 +128,16 @@ export function createSlackApp(config: Config, db: Database.Database, llm: LlmCl
       ] });
     },
     userMessage: async ({ message, say, setStatus, client }) => {
-      const text = (message as any).text ?? '';
-      const userId = (message as any).user;
-      try {
-        await setStatus('thinking...');
-        if (isBriefingAsk(text)) {
-          const r = await onDemandBriefing(db, llm, userId, new Date());
-          await say({ text: r.text, blocks: r.blocks });
-          return;
-        }
-        const leave = await handleLeaveMessage(db, llm, webNudgeSender(client), webLeaveMessenger(client),
-          { text, userId, channelId: '' });
-        if (leave) {
-          await say(leave.text);
-          for (const ch of leave.channels) await syncChannelCanvas(db, webCanvasClient(client), ch);
-          return;
-        }
-        const searchContext = async (q: string): Promise<string[]> => {
-          if (!config.slackUserToken) return [];
-          const res = await client.search.messages({ token: config.slackUserToken, query: q, count: 5 });
-          return (res.messages?.matches ?? []).map((m: any) => `${m.username}: ${m.text}`);
-        };
-        await say(await answerRecall(db, llm, text, searchContext));
-      } catch (e) {
-        console.error('assistant failed', e);
-        await say(`⚠️ I couldn't answer that: ${(e as Error).message}`);
-      }
+      await answerUserQuery(client, (message as any).text ?? '', (message as any).user, say, setStatus);
     },
   });
   app.assistant(assistant);
+  // Top-level DMs (classic Messages tab) never enter an assistant thread, so the
+  // Assistant middleware ignores them — answer them through the same routine.
+  app.message(async ({ message, say, client }) => {
+    const m: any = message;
+    if (m.channel_type !== 'im' || m.thread_ts || m.subtype || m.bot_id || !m.user) return;
+    await answerUserQuery(client, m.text ?? '', m.user, say);
+  });
   return app;
 }

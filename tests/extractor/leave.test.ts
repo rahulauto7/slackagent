@@ -18,6 +18,12 @@ describe('looksLikeLeave', () => {
     'taking a day off tomorrow',
     "I'm out from the 10th to the 14th",
     'on holiday till Tuesday',
+    'i will be leave on from tommorr till firday',
+    'I will be out Thursday and Friday',
+    "I'll be off next Monday",
+    'I will be away all week',
+    "I won't be around tomorrow",
+    "I won't be available Thu-Fri",
   ])('matches %j', (text) => expect(looksLikeLeave(text)).toBe(true));
 
   it.each([

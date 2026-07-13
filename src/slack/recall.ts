@@ -4,7 +4,13 @@ import type { LlmClient } from '../llm/client.js';
 import { searchDecisions } from '../store/decisionStore.js';
 
 export function isBriefingAsk(text: string): boolean {
-  return /what'?s my day|my day\?|daily briefing/i.test(text);
+  return /what'?s my day|my day\?|\bbriefing\b|on (?:my|your) plate|what'?s due/i.test(text);
+}
+
+export function isRecallAsk(text: string): boolean {
+  const t = text.trim().replace(/[‘’]/g, "'");
+  if (!/[?？]$/.test(t)) return false;
+  return /^(what|who|why|when|how|which|remind me|do (?:we|you) (?:know|remember))\b/i.test(t);
 }
 
 export function recallPrompt(question: string, decisions: Decision[], contextSnippets: string[]) {
